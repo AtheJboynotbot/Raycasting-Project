@@ -45,6 +45,38 @@ def start_menu():
         pygame.display.update()
 
 
+def pause_menu():
+    paused = True
+    title_font = pygame.font.Font(None, 50)
+    button_font = pygame.font.Font(None, 30)
+    paused_text = title_font.render("Paused", True, (255, 255, 255))
+    resume_button_text = button_font.render("Resume", True, (255, 255, 255))
+    quit_button_text = button_font.render("Quit", True, (255, 255, 255))
+
+    paused_rect = paused_text.get_rect(center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT // 3))
+    resume_button_rect = resume_button_text.get_rect(center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2))
+    quit_button_rect = quit_button_text.get_rect(center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2 + 50))
+
+    while paused:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    paused = False # Resume game
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if resume_button_rect.collidepoint(event.pos):
+                    paused = False # Resume game
+                if quit_button_rect.collidepoint(event.pos):
+                    pygame.quit()
+                    sys.exit()
+
+        screen.blit(paused_text, paused_rect)
+        screen.blit(resume_button_text, resume_button_rect)
+        screen.blit(quit_button_text, quit_button_rect)
+        pygame.display.update()
+
 start_menu()
 
 while True:
@@ -57,8 +89,7 @@ while True:
             sys.exit()
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_ESCAPE:
-                pygame.quit()
-                sys.exit()
+                pause_menu()
 
     
 

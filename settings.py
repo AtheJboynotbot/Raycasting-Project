@@ -1,5 +1,5 @@
 import math
-TILESIZE = 32
+TILESIZE = 64
 
 ROWS = 10
 COLS = 16

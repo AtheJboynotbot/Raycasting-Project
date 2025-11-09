@@ -1,141 +1,130 @@
 import math
 import pygame
 from settings import *
-from themap import *
 
 def _normalize_angle(angle):
-        angle %= 2 * math.pi
-        if angle < 0:
-            angle += 2 * math.pi
-        return angle
+    angle %= 2 * math.pi
+    if angle < 0:
+        angle += 2 * math.pi
+    return angle
+
 def distance_between(x1, y1, x2, y2):
-    #distance between two points
-    return math.sqrt((x2 - x1) *(x2 - x1) + (y2 - y1) *(y2 - y1))
+    return math.hypot(x2 - x1, y2 - y1)
+
 class Ray:
     def __init__(self, ray_angle, player, map):
         self.player = player
         self.map = map
         self.ray_angle = _normalize_angle(ray_angle)
-        self.distance = 1
-        self.color = 255
-        self.is_facing_down = self.ray_angle > 0 and self.ray_angle < math.pi
-        self.is_facing_up = not self.is_facing_down
-        self.is_facing_right = self.ray_angle < 0.5 * math.pi or self.ray_angle > 1.5 * math.pi
-        self.is_facing_left = not self.is_facing_right
-        self.horizontal_hit_x = 0
-        self.horizontal_hit_y = 0
         self.distance = 0
         self.color = (198, 162, 126)
+        self.is_facing_down = 0 < self.ray_angle < math.pi
+        self.is_facing_up = not self.is_facing_down
+        self.is_facing_right = (self.ray_angle < 0.5 * math.pi) or (self.ray_angle > 1.5 * math.pi)
+        self.is_facing_left = not self.is_facing_right
+
+        self.horizontal_hit_x = 0
+        self.horizontal_hit_y = 0
+        self.vertical_hit_x = 0
+        self.vertical_hit_y = 0
+
+        self.wall_hit_x = 0
+        self.wall_hit_y = 0
+        self.texture_x = 0
+        self.was_hit_vertical = False
 
     def cast(self):
-        #HORIZONTAL WALL CHECK
-        found_horizontal_wall = False
-        horizontal_hit_x = 0
-        horizontal_hit_y = 0
+        # HORIZONTAL INTERSECTION CHECK
+        found_horizontal = False
+        hor_hit_x = hor_hit_y = 0
 
-        first_intersection_x = None
-        first_intersection_y = None
-
-        # Only check horizontal walls if not looking exactly left/right
+        # avoid tan = 0 (ray exactly horizontal)
         tan_angle = math.tan(self.ray_angle)
-        if abs(tan_angle) > 0.0001:  # Not exactly horizontal
-            if self.is_facing_up:
-                first_intersection_y = ((self.player.y // TILESIZE)) * TILESIZE - 0.001
-            elif self.is_facing_down:
-                first_intersection_y = ((self.player.y // TILESIZE) * TILESIZE) + TILESIZE
+        if abs(tan_angle) > 1e-6:
+            if self.is_facing_down:
+                y_intercept = math.floor(self.player.y / TILESIZE) * TILESIZE + TILESIZE
+                y_step = TILESIZE
+            else:
+                y_intercept = math.floor(self.player.y / TILESIZE) * TILESIZE - 1e-6
+                y_step = -TILESIZE
 
-            first_intersection_x = self.player.x + (first_intersection_y - self.player.y) / tan_angle
-            next_horizontal_x = first_intersection_x
-            next_horizontal_y = first_intersection_y
+            x_intercept = self.player.x + (y_intercept - self.player.y) / tan_angle
+            x_step = y_step / tan_angle
 
-            if self.is_facing_up:
-                ya = -TILESIZE
-            elif self.is_facing_down:
-                ya = TILESIZE
-            xa = ya / tan_angle
+            next_x = x_intercept
+            next_y = y_intercept
 
-            while (next_horizontal_x <= WINDOW_WIDTH and next_horizontal_x >= 0 and next_horizontal_y <= WINDOW_HEIGHT and next_horizontal_y >= 0):
-                if self.map.has_wall_at(next_horizontal_x, next_horizontal_y):
-                    found_horizontal_wall = True
-                    horizontal_hit_x = next_horizontal_x
-                    horizontal_hit_y = next_horizontal_y
+            while 0 <= next_x < WINDOW_WIDTH and 0 <= next_y < WINDOW_HEIGHT:
+                # when checking horizontal intersections, sample a tiny bit toward the ray direction:
+                check_y = next_y + (1 if self.is_facing_down else -1)
+                if self.map.has_wall_at(next_x, check_y):
+                    found_horizontal = True
+                    hor_hit_x = next_x
+                    hor_hit_y = next_y
                     break
-                else:
-                    next_horizontal_x += xa
-                    next_horizontal_y += ya
-        
-        #VERTICAL WALL CHECK
-        found_vertical_wall = False
-        vertical_hit_x = 0
-        vertical_hit_y = 0
-        # Only check vertical walls if not looking exactly up/down
-        tan_angle = math.tan(self.ray_angle)
-        if abs(tan_angle) < 10000:  # Not exactly vertical
+                next_x += x_step
+                next_y += y_step
+
+        # VERTICAL INTERSECTION CHECK
+        found_vertical = False
+        ver_hit_x = ver_hit_y = 0
+
+        # avoid extremely large tan (ray exactly vertical) by using cotangent step
+        if abs(1 / (math.tan(self.ray_angle) if abs(math.tan(self.ray_angle)) > 1e-6 else 1e6)) > 0:
             if self.is_facing_right:
-                first_intersection_x = ((self.player.x // TILESIZE) * TILESIZE) + TILESIZE 
-            elif self.is_facing_left:
-                first_intersection_x = (self.player.x // TILESIZE) * TILESIZE -0.001
+                x_intercept = math.floor(self.player.x / TILESIZE) * TILESIZE + TILESIZE
+                x_step = TILESIZE
+            else:
+                x_intercept = math.floor(self.player.x / TILESIZE) * TILESIZE - 1e-6
+                x_step = -TILESIZE
 
-            first_intersection_y = self.player.y + (first_intersection_x - self.player.x) * tan_angle
-            next_vertical_x = first_intersection_x
-            next_vertical_y = first_intersection_y
+            y_intercept = self.player.y + (x_intercept - self.player.x) * math.tan(self.ray_angle)
+            y_step = x_step * math.tan(self.ray_angle)
 
-            if self.is_facing_right:
-                xa = TILESIZE
-            elif self.is_facing_left:
-                xa = -TILESIZE
-            ya = xa * tan_angle
+            next_x = x_intercept
+            next_y = y_intercept
 
-            while (next_vertical_x <= WINDOW_WIDTH and next_vertical_x >= 0 and next_vertical_y <= WINDOW_HEIGHT and next_vertical_y >= 0):
-                if self.map.has_wall_at(next_vertical_x, next_vertical_y):
-                    found_vertical_wall = True
-                    vertical_hit_x = next_vertical_x
-                    vertical_hit_y = next_vertical_y
+            while 0 <= next_x < WINDOW_WIDTH and 0 <= next_y < WINDOW_HEIGHT:
+                # sample a tiny bit toward the ray direction for vertical check
+                check_x = next_x + ( -1 if self.is_facing_left else 1 )
+                if self.map.has_wall_at(check_x, next_y):
+                    found_vertical = True
+                    ver_hit_x = next_x
+                    ver_hit_y = next_y
                     break
-                else:
-                    next_vertical_x += xa
-                    next_vertical_y += ya
+                next_x += x_step
+                next_y += y_step
 
-        #distance calculation
-        horizontal_distance = 0
-        vertical_distance = 0
+        # Distances
+        horiz_dist = distance_between(self.player.x, self.player.y, hor_hit_x, hor_hit_y) if found_horizontal else float('inf')
+        vert_dist = distance_between(self.player.x, self.player.y, ver_hit_x, ver_hit_y) if found_vertical else float('inf')
 
-        if found_horizontal_wall:
-            horizontal_distance = distance_between(self.player.x, self.player.y, horizontal_hit_x, horizontal_hit_y)
+        # choose closer hit
+        if vert_dist < horiz_dist:
+            self.wall_hit_x = ver_hit_x
+            self.wall_hit_y = ver_hit_y
+            raw_distance = vert_dist
+            self.was_hit_vertical = True
+            # texture X from Y coord for vertical wall
+            self.texture_x = int(ver_hit_y) % TILESIZE
         else:
-            horizontal_distance = 999999
+            self.wall_hit_x = hor_hit_x
+            self.wall_hit_y = hor_hit_y
+            raw_distance = horiz_dist
+            self.was_hit_vertical = False
+            # texture X from X coord for horizontal wall
+            self.texture_x = int(hor_hit_x) % TILESIZE
 
-        if found_vertical_wall:
-            vertical_distance = distance_between(self.player.x, self.player.y, vertical_hit_x, vertical_hit_y)
-        else:
-            vertical_distance = 999999
+        # Fish-eye correction and set final distance
+        self.distance = raw_distance * math.cos(self.player.rotationAngle - self.ray_angle) if raw_distance != float('inf') else 0.0001
 
-        if horizontal_distance < vertical_distance:
-            self.wall_hit_x = horizontal_hit_x
-            self.wall_hit_y = horizontal_hit_y
-            self.distance = horizontal_distance
-            self.color = (128, 105, 82)
-        else:
-            self.wall_hit_x = vertical_hit_x
-            self.wall_hit_y = vertical_hit_y     
-            self.distance = vertical_distance
-            self.color = (198, 162, 126)
-        self.distance *= math.cos(self.player.rotationAngle - self.ray_angle)
-        
-        # Lighting Effect the farther the darker
-        brightness_factor = 60 / self.distance
+        # Lighting: scale base color by distance (keep some minimal brightness)
+        brightness_factor = max(0.15, min(1.0, 60.0 / (self.distance if self.distance > 0 else 1)))
         r, g, b = self.color
         r = int(r * brightness_factor)
         g = int(g * brightness_factor)
         b = int(b * brightness_factor)
-        
-        # Clamp values to 0-255 range
-        r = max(0, min(255, r))
-        g = max(0, min(255, g))
-        b = max(0, min(255, b))
-        
-        self.color = (r, g, b)
-
+        self.color = (max(0, min(255, r)), max(0, min(255, g)), max(0, min(255, b)))
 
     def render(self, screen):
         pygame.draw.line(screen, (255, 0, 0), (self.player.x, self.player.y), (self.wall_hit_x, self.wall_hit_y))

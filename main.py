@@ -1,5 +1,6 @@
 import pygame
 import sys
+import os
 from settings import *
 from themap import Map
 from theplayer import Player
@@ -12,15 +13,20 @@ screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
 map = Map()
 player = Player(map)  # Pass map to player for collision detection
 clock = pygame.time.Clock()
-raycaster = Raycaster(player, map)
-#supposed to be ceiling and floor
-#background_image = pygame.image.load("texture/ceiling and floor/cobblestone.jpg").convert()
+
+# load textures (place your PNG/JPG in a "textures" folder next to main.py)
+base_dir = os.path.dirname(__file__)
+wall_tex = pygame.image.load(os.path.join(base_dir, "textures", "wall.png")).convert()
+ceiling_tex = pygame.image.load(os.path.join(base_dir, "textures", "ceiling.png")).convert()
+floor_tex = pygame.image.load(os.path.join(base_dir, "textures", "floor.png")).convert()
+
+raycaster = Raycaster(player, map, wall_tex, floor_tex, ceiling_tex)  # pass floor & ceiling textures too
 
 
 def start_menu():
     title_font = pygame.font.Font(None, 50)
     button_font = pygame.font.Font(None, 30)
-    title_text = title_font.render("Raycasting by Demol, Esfandiary, Judaya, and Roldan", True, (255, 255, 255))
+    title_text = title_font.render("Raycasting by Esfandiary, Hisu-an, Judaya, and Perez", True, (255, 255, 255))
     start_button_text = button_font.render("Start", True, (255, 255, 255))
     title_rect = title_text.get_rect(center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT // 3))
     start_button_rect = start_button_text.get_rect(center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2))
@@ -80,8 +86,8 @@ def pause_menu():
 start_menu()
 
 while True:
-    #fps runs at 120
-    clock.tick(120)
+    #fps runs at 60
+    clock.tick(60)
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             pygame.quit()
@@ -91,12 +97,13 @@ while True:
             if event.key == pygame.K_ESCAPE:
                 pause_menu()
 
-    
-
     screen.fill((86, 90, 102))
-    #this is supposed to be ceiling and floor
-    # screen.blit(background_image, (0, 0))
-    #map.render(screen)
+    # draw ceiling and floor by stretching textures to halves of screen
+    # ceiling_s = pygame.transform.scale(ceiling_tex, (WINDOW_WIDTH, WINDOW_HEIGHT // 2))
+    # floor_s = pygame.transform.scale(floor_tex, (WINDOW_WIDTH, WINDOW_HEIGHT // 2))
+    # screen.blit(ceiling_s, (0, 0))
+    # screen.blit(floor_s, (0, WINDOW_HEIGHT // 2))
+
     raycaster.castAllRays()
     raycaster.render(screen)
     player.update()
